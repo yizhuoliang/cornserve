@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package cornserve.shard_manager;
+
+import "common.proto";
+
+message ResourceSpec {
+  int32 num_gpus = 1;
+  string gpu_type = 2;
+  int64 memory_bytes = 3;
+}
+
+service ShardManager {
+  // Register a new task and profile it
+  rpc RegisterNewTask(RegisterTaskRequest) returns (RegisterTaskResponse);
+  
+  // Load management
+  rpc ReconcileTargetLoad(ReconcileTargetLoadRequest) returns (ReconcileTargetLoadResponse);
+  rpc GetTaskProfile(GetTaskProfileRequest) returns (GetTaskProfileResponse);
+  
+  // Request routing
+  rpc Submit(SubmitRequest) returns (SubmitResponse);
+  
+  // Health checking
+  rpc Healthcheck(HealthcheckRequest) returns (HealthcheckResponse);
+}
+
+// Task registration
+message TaskDescriptor {
+  string task_id = 1;
+  string model_path = 2;
+  ResourceSpec resource_requirements = 3;
+  map<string, string> config = 4;
+}
+
+message RegisterTaskRequest {
+  TaskDescriptor descriptor = 1;
+}
+
+message RegisterTaskResponse {
+  string task_id = 1;
+  common.Status status = 2;
+  string message = 3;
+}
+
+// Load management
+message ReconcileTargetLoadRequest {
+  string task_id = 1;
+  float target_load = 2;
+}
+
+message ReconcileTargetLoadResponse {
+  common.Status status = 1;
+  string message = 2;
+}
+
+// Task profiling
+message ProfilePoint {
+  int32 num_gpus = 1;
+  float max_sustainable_load = 2;
+  DeploymentConfig deployment_config = 3;
+}
+
+message DeploymentConfig {
+  int32 num_replicas = 1;
+  int32 tensor_parallel_degree = 2;
+  int32 pipeline_parallel_degree = 3;
+  repeated string gpu_assignments = 4;
+}
+
+message GetTaskProfileRequest {
+  string task_id = 1;
+}
+
+message GetTaskProfileResponse {
+  repeated ProfilePoint profile_points = 1;
+}
+
+// Request routing
+message Request {
+  string task_id = 1;
+  bytes payload = 2;
+  string request_id = 3;
+  map<string, string> metadata = 4;
+}
+
+message Response {
+  bytes result = 1;
+  common.Status status = 2;
+  string message = 3;
+}
+
+message SubmitRequest {
+  Request request = 1;
+  string callback_success_endpoint = 2;
+  string callback_failure_endpoint = 3;
+}
+
+message SubmitResponse {
+  string request_id = 1;
+  common.Status status = 2;
+}
+
+// Healthcheck response
+message WorkerStatus {
+  string worker_id = 1;
+  common.Status status = 2;
+}
+
+message HealthcheckRequest {}
+
+message HealthcheckResponse {
+  common.Status status = 1;
+  map<string, WorkerStatus> worker_statuses = 2;
+}

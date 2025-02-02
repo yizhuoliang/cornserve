@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package cornserve.common;
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_OK = 1;
+  STATUS_ERROR = 2;
+}
