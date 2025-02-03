@@ -2,7 +2,7 @@ import asyncio
 
 import grpc
 
-from python.cornserve.services.pb import common_pb2, resource_manager_pb2, resource_manager_pb2_grpc
+from cornserve.services.pb import common_pb2, resource_manager_pb2, resource_manager_pb2_grpc
 
 async def main():
     async with grpc.aio.insecure_channel("localhost:30001") as channel:
