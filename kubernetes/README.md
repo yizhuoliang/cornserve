@@ -38,6 +38,7 @@ On all other (worker) nodes:
 # NOTE: This snippet has not been validated yet. I just wrote it as I would first try.
 # Install and start K3s
 curl -sfL https://get.k3s.io | K3S_URL=https://$MASTER_ADDRESS:6443 K3S_TOKEN=$NODE_TOKEN INSTALL_K3S_SKIP_ENABLE=true sh -
+sudo mkdir -p /etc/rancher/k3s
 sudo cp k3s/agent-config.yaml /etc/rancher/k3s/config.yaml
 sudo cp k3s/registries.yaml /etc/rancher/k3s/registries.yaml
 sudo systemctl start k3s-agent
