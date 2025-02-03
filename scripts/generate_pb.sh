@@ -7,6 +7,7 @@ PROTO_FILES=$(find $PROTO_DIR -name "*.proto")
 
 PYTHON_OUTPUT_DIR="python/cornserve/services/pb"
 mkdir -p "$PYTHON_OUTPUT_DIR"
+rm "$PYTHON_OUTPUT_DIR"/*pb2.py "$PYTHON_OUTPUT_DIR"/*pb2.pyi "$PYTHON_OUTPUT_DIR"/*pb2_grpc.py || true
 for proto in $PROTO_FILES; do
   echo "Generating code for $proto in $PYTHON_OUTPUT_DIR"
   python -m grpc_tools.protoc \
@@ -16,3 +17,7 @@ for proto in $PROTO_FILES; do
     --pyi_out=$PYTHON_OUTPUT_DIR \
     $proto
 done
+
+# The generated `import common_pb2`, for example, doesn't work.
+# We need to change it manually to `from . import common_pb2`.
+find "$PYTHON_OUTPUT_DIR" -type f -name "*.py" -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;

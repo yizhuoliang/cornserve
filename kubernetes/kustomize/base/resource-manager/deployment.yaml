@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-manager
+  namespace: cornserve
+  labels:
+    app: resource-manager
+spec:
+  selector:
+    matchLabels:
+      app: resource-manager
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: resource-manager
+    spec:
+      serviceAccountName: resource-manager
+      containers:
+      - name: resource-manager
+        image: cornserve/resource-manager:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 50051
+          name: grpc

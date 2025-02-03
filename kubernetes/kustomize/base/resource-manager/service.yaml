@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: resource-manager
+  namespace: cornserve
+spec:
+  selector:
+    app: resource-manager
+  ports:
+  - name: resource-manager
+    port: 50051
+    targetPort: grpc

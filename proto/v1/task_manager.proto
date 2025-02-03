@@ -1,16 +1,10 @@
 syntax = "proto3";
 
-package cornserve.shard_manager;
+package cornserve.task_manager;
 
 import "common.proto";
 
-message ResourceSpec {
-  int32 num_gpus = 1;
-  string gpu_type = 2;
-  int64 memory_bytes = 3;
-}
-
-service ShardManager {
+service TaskManager {
   // Register a new task and profile it
   rpc RegisterNewTask(RegisterTaskRequest) returns (RegisterTaskResponse);
   
@@ -27,20 +21,18 @@ service ShardManager {
 
 // Task registration
 message TaskDescriptor {
-  string task_id = 1;
-  string model_path = 2;
-  ResourceSpec resource_requirements = 3;
-  map<string, string> config = 4;
+  common.TaskType type = 1;
+  map<string, string> config = 2;
 }
 
 message RegisterTaskRequest {
-  TaskDescriptor descriptor = 1;
+  string task_manager_id = 1;
+  map<string, string> workers = 2;
+  TaskDescriptor descriptor = 3;
 }
 
 message RegisterTaskResponse {
-  string task_id = 1;
-  common.Status status = 2;
-  string message = 3;
+  common.Status status = 1;
 }
 
 // Load management

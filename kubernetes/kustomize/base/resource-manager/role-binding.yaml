@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: resource-manager-binding
+  namespace: cornserve
+subjects:
+- kind: ServiceAccount
+  name: resource-manager
+roleRef:
+  kind: Role
+  name: resource-manager-role
+  apiGroup: rbac.authorization.k8s.io

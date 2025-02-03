@@ -7,3 +7,9 @@ enum Status {
   STATUS_OK = 1;
   STATUS_ERROR = 2;
 }
+
+enum TaskType {
+  UNKNOWN = 0;
+  LLM = 1;
+  ENCODER = 2;
+}

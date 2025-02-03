@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package cornserve.resource_manager;
+
+import "common.proto";
+
+service ResourceManager {
+  // Spawn a new task manager
+  rpc DeployTaskManager(DeployTaskManagerRequest) returns (DeployTaskManagerResponse);
+
+  // Kill a task manager
+  rpc KillTaskManager(DeployTaskManagerRequest) returns (DeployTaskManagerResponse);
+
+  // Health checking
+  rpc Healthcheck(HealthcheckRequest) returns (HealthcheckResponse);
+}
+
+// Spawn a new task manager
+message DeployTaskManagerRequest {
+  string task_manager_id = 1;
+  common.TaskType type = 2;
+  map<string, string> config = 3;  // TODO: Add some structure
+}
+
+message DeployTaskManagerResponse {
+  common.Status status = 1;
+}
+
+// Kill a task manager
+message KillTaskManagerRequest {
+  string task_manager_id = 1;
+}
+
+message KillTaskManagerResponse {
+  common.Status status = 1;
+}
+
+// Health checking
+message TaskManagerStatus {
+  common.Status status = 1;
+}
+
+message HealthcheckRequest {}
+
+message HealthcheckResponse {
+  common.Status status = 1;
+  map<string, TaskManagerStatus> task_manager_statuses = 2;
+}

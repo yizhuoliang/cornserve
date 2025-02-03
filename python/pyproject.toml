@@ -13,8 +13,9 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "grpcio",
+    "grpcio-tools",
     "tyro",
+    "kubernetes_asyncio",
 ]
 dynamic = ["version"]
 
@@ -26,6 +27,17 @@ version = { attr = "cornserve.__version__" }
 
 [tool.ruff]
 line-length = 120
+pydocstyle.convention = "google"
+select = [
+  "E",   # pycodestyle error
+  "F",   # pyflakes
+  "D",   # pydocstyle
+  "PL",  # pylint
+  "N",   # pep8-naming
+  "B",   # flake8-bugbear (detects likely bugs)
+  "G",   # flake8-logging-format (complains about logging)
+  "SIM", # flake8-simplify (suggests code simplifications)
+]
 
 [tool.pyright]
 exclude = [

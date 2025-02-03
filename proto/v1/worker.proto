@@ -18,7 +18,7 @@ service Worker {
 
 // Worker adoption
 message AdoptRequest {
-  string shard_manager_id = 1;  // ID of the adopting shard manager
+  string task_manager_id = 1;  // ID of the adopting task manager
 }
 
 message AdoptResponse {
@@ -64,5 +64,5 @@ message HealthcheckRequest {}
 
 message HealthcheckResponse {
   common.Status status = 1;
-  optional ExecutorStatus executor_status = 2;
+  ExecutorStatus executor_status = 2;
 }

@@ -1,0 +1,6 @@
+mirrors:
+  docker.io:
+    endpoint:
+      - "http://private.registry.example.com:5000"  # Replace with your private registry endpoint
+    rewrite:
+      "^cornserve/(.*)$": "cornserve/$1"
