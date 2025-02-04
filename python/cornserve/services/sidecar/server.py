@@ -1,4 +1,6 @@
 import os
+import time
+
 import torch.distributed as dist
 
 def main():
@@ -34,6 +36,8 @@ def main():
     
     # Now you can write your distributed training code.
     print(f"Initialized process group with rank {rank} out of {world_size}")
+
+    time.sleep(300)
 
 if __name__ == "__main__":
     main()

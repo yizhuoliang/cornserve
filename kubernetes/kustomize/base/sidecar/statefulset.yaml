@@ -16,6 +16,13 @@ spec:
       labels:
         app: sidecar
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: "kubernetes.io/hostname"
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: sidecar
       containers:
       - name: sidecar
         image: cornserve/sidecar:latest
