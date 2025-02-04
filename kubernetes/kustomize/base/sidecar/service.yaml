@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: torch-headless
+  namespace: cornserve
+  labels:
+    app: sidecar
+spec:
+  clusterIP: None
+  selector:
+    app: sidecar
+  ports:
+    - name: torch
+      port: 29500
+      targetPort: 29500

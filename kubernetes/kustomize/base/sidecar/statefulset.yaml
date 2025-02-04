@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sidecar
+  namespace: cornserve
+  labels:
+    app: sidecar
+spec:
+  serviceName: "torch-headless"
+  selector:
+    matchLabels:
+      app: sidecar
+  replicas: 4
+  template:
+    metadata:
+      labels:
+        app: sidecar
+    spec:
+      containers:
+      - name: sidecar
+        image: cornserve/sidecar:latest
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 29500
+            name: torch
+        env:
+          - name: MASTER_ADDR
+            value: "sidecar-0.torch-headless.cornserve.svc.cluster.local"
+          - name: MASTER_PORT
+            value: "29500"
+          - name: WORLD_SIZE
+            value: "4"
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
