@@ -6,14 +6,14 @@ description: Getting started with Cornserve
 
 ## Try it out in Minikube!
 
-You can try out Cornserve on your local machine (with Docker and at least two NVIDIA GPUs) using [Minikube](https://minikube.sigs.k8s.io).
+You can try out Cornserve on your local machine (with Docker and at least two NVIDIA V100 GPUs) using [Minikube](https://minikube.sigs.k8s.io).
 
 First, install Minikube following their [guide](https://minikube.sigs.k8s.io/docs/start/).
 
 Then, start a Minikube cluster with GPU support:
 
 ```bash
-minikube start \
+minikube start \ # (2)!
     --driver docker \
     --container-runtime docker \
     --gpus all \
@@ -21,6 +21,7 @@ minikube start \
 ```
 
 1. Give it enough disk space to download model weights and stuff. You can also give more CPU (e.g., `--cpus 8`) and memory (`--memory 16g`).
+2. If you don't have rootless docker, please prepend `sudo`
 
 Next, and this is important, we want to increase the shared memory (`/dev/shm`) size of the Minikube container.
 
@@ -31,11 +32,17 @@ $ minikube ssh -- sudo mount -o remount,size=16G /dev/shm
 Next, clone the Cornserve GitHub repository and deploy Cornserve on your Minikube cluster:
 
 ```bash
-git clone git@github.com:cornserve-ai/cornserve.git
+git clone https://github.com/cornserve-ai/cornserve.git
 cd cornserve
 
 minikube kubectl -- apply -k kubernetes/kustomize/cornserve-system/overlays/minikube
 minikube kubectl -- apply -k kubernetes/kustomize/cornserve/overlays/minikube
+```
+
+We'll be using [Gemma 3 4B](https://huggingface.co/google/gemma-3-4b-it/tree/main) for this demo, so you need to have access (requests are processed immediately with an account).
+While we wait for the containers to spin up, add your HuggingFace access token to Cornserve, which can be created [here](https://huggingface.co/settings/tokens) if you don't have one already.
+```
+kubectl create -n cornserve secret generic cornserve-env --from-literal=hf-token='YOUR_HUGGINGFACE_TOKEN'
 ```
 
 After a few moments (which largely depends on how long it takes to pull Docker images from Docker Hub), check whether Cornserve is running:
