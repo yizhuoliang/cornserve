@@ -35,21 +35,23 @@ class Qwen2_5_VisionTransformer(EricModel):
             hidden_size=self.hidden_size,
         )
 
-        norm_eps = getattr(config, "rms_norm_eps", 1e-6),
+        norm_eps = getattr(config, "rms_norm_eps", 1e-6)
         norm_layer = partial(RMSNorm, eps=norm_eps)
         head_dim = self.hidden_size // self.num_heads
         self.rotary_pos_emb = Qwen2_5_VisionRotaryEmbedding(head_dim // 2)
 
-        self.blocks = nn.ModuleList([
-            Qwen2_5_VisionBlock(
-                dim=self.hidden_size,
-                num_heads=self.num_heads,
-                mlp_hidden_dim=vision_config.intermediate_size,
-                act_fn=_ACTIVATION_REGISTRY[vision_config.hidden_act],
-                norm_layer=norm_layer,
-            )
-            for layer_idx in range(depth)
-        ])
+        self.blocks = nn.ModuleList(
+            [
+                Qwen2_5_VisionBlock(
+                    dim=self.hidden_size,
+                    num_heads=self.num_heads,
+                    mlp_hidden_dim=vision_config.intermediate_size,
+                    act_fn=_ACTIVATION_REGISTRY[vision_config.hidden_act],
+                    norm_layer=norm_layer,
+                )
+                for layer_idx in range(depth)
+            ]
+        )
         self.merger = Qwen2_5_VisionPatchMerger(
             d_model=vision_config.out_hidden_size,
             context_dim=self.hidden_size,
@@ -75,20 +77,27 @@ class Qwen2_5_VisionTransformer(EricModel):
         for t, h, w in grid_thw:
             hpos_ids = torch.arange(h).unsqueeze(1).expand(-1, w)
             wpos_ids = torch.arange(w).unsqueeze(0).expand(h, -1)
-            hpos_ids = hpos_ids.reshape(
-                h // self.spatial_merge_size,
-                self.spatial_merge_size,
-                w // self.spatial_merge_size,
-                self.spatial_merge_size,
-            ).permute(0, 2, 1, 3).flatten()
-            wpos_ids = wpos_ids.reshape(
-                h // self.spatial_merge_size,
-                self.spatial_merge_size,
-                w // self.spatial_merge_size,
-                self.spatial_merge_size,
-            ).permute(0, 2, 1, 3).flatten()
-            pos_ids.append(
-                torch.stack([hpos_ids, wpos_ids], dim=-1).repeat(t, 1))
+            hpos_ids = (
+                hpos_ids.reshape(
+                    h // self.spatial_merge_size,
+                    self.spatial_merge_size,
+                    w // self.spatial_merge_size,
+                    self.spatial_merge_size,
+                )
+                .permute(0, 2, 1, 3)
+                .flatten()
+            )
+            wpos_ids = (
+                wpos_ids.reshape(
+                    h // self.spatial_merge_size,
+                    self.spatial_merge_size,
+                    w // self.spatial_merge_size,
+                    self.spatial_merge_size,
+                )
+                .permute(0, 2, 1, 3)
+                .flatten()
+            )
+            pos_ids.append(torch.stack([hpos_ids, wpos_ids], dim=-1).repeat(t, 1))
         pos_ids = torch.cat(pos_ids, dim=0)
         max_grid_size = grid_thw[:, 1:].max()
         rotary_pos_emb_full = self.rotary_pos_emb(max_grid_size)
@@ -99,32 +108,28 @@ class Qwen2_5_VisionTransformer(EricModel):
         window_index: list = []
         cu_window_seqlens: list = [0]
         window_index_id = 0
-        vit_merger_window_size = (self.window_size //
-                                  self.spatial_merge_size // self.patch_size)
+        vit_merger_window_size = self.window_size // self.spatial_merge_size // self.patch_size
 
         for grid_t, grid_h, grid_w in grid_thw:
             llm_grid_h = grid_h // self.spatial_merge_size
             llm_grid_w = grid_w // self.spatial_merge_size
-            index = torch.arange(grid_t * llm_grid_h * llm_grid_w).reshape(
-                grid_t, llm_grid_h, llm_grid_w)
+            index = torch.arange(grid_t * llm_grid_h * llm_grid_w).reshape(grid_t, llm_grid_h, llm_grid_w)
             pad_h = vit_merger_window_size - llm_grid_h % vit_merger_window_size
             pad_w = vit_merger_window_size - llm_grid_w % vit_merger_window_size
             num_windows_h = (llm_grid_h + pad_h) // vit_merger_window_size
             num_windows_w = (llm_grid_w + pad_w) // vit_merger_window_size
-            index_padded = F.pad(index, (0, pad_w, 0, pad_h), 'constant', -100)
-            index_padded = index_padded.reshape(grid_t, num_windows_h,
-                                                vit_merger_window_size,
-                                                num_windows_w,
-                                                vit_merger_window_size)
+            index_padded = F.pad(index, (0, pad_w, 0, pad_h), "constant", -100)
+            index_padded = index_padded.reshape(
+                grid_t, num_windows_h, vit_merger_window_size, num_windows_w, vit_merger_window_size
+            )
             index_padded = index_padded.permute(0, 1, 3, 2, 4).reshape(
-                grid_t, num_windows_h * num_windows_w, vit_merger_window_size,
-                vit_merger_window_size)
+                grid_t, num_windows_h * num_windows_w, vit_merger_window_size, vit_merger_window_size
+            )
             seqlens = (index_padded != -100).sum([2, 3]).reshape(-1)
             index_padded = index_padded.reshape(-1)
             index_new = index_padded[index_padded != -100]
             window_index.append(index_new + window_index_id)
-            cu_seqlens_tmp = seqlens.cumsum(
-                0) * self.spatial_merge_unit + cu_window_seqlens[-1]
+            cu_seqlens_tmp = seqlens.cumsum(0) * self.spatial_merge_unit + cu_window_seqlens[-1]
             cu_window_seqlens.extend(cu_seqlens_tmp.tolist())
             window_index_id += (grid_t * llm_grid_h * llm_grid_w).item()
         window_index = torch.cat(window_index, dim=0)
@@ -158,31 +163,28 @@ class Qwen2_5_VisionTransformer(EricModel):
         cu_window_seqlens = torch.tensor(
             cu_window_seqlens,
             device=hidden_states.device,
-            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32)
+            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+        )
         cu_window_seqlens = torch.unique_consecutive(cu_window_seqlens)
         seq_len, _ = hidden_states.size()
-        hidden_states = hidden_states.reshape(
-            seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
         hidden_states = hidden_states[window_index, :, :]
         hidden_states = hidden_states.reshape(seq_len, -1)
-        rotary_pos_emb = rotary_pos_emb.reshape(
-            seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        rotary_pos_emb = rotary_pos_emb.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
         rotary_pos_emb = rotary_pos_emb[window_index, :, :]
         rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
         # compute cu_seqlens
-        cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2],
-                                             grid_thw[:, 0]).cumsum(
-                                                 dim=0, dtype=torch.int32)
+        cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]).cumsum(
+            dim=0, dtype=torch.int32
+        )
         cu_seqlens = F.pad(cu_seqlens, (1, 0), "constant", 0)
 
         # transformers
         hidden_states = hidden_states.unsqueeze(1)
 
         # pre-compute seqlens for window/full attn to reduce cuMemcpy operations
-        max_seqlen_full, seqlens_full = self.compute_attn_mask_seqlen(
-            cu_seqlens)
-        max_seqlen_window, seqlens_window = self.compute_attn_mask_seqlen(
-            cu_window_seqlens)
+        max_seqlen_full, seqlens_full = self.compute_attn_mask_seqlen(cu_seqlens)
+        max_seqlen_window, seqlens_window = self.compute_attn_mask_seqlen(cu_window_seqlens)
         for layer_num, blk in enumerate(self.blocks):
             if layer_num in self.fullatt_block_indexes:
                 cu_seqlens_now = cu_seqlens
@@ -211,5 +213,3 @@ class Qwen2_5_VisionTransformer(EricModel):
         reverse_indices = torch.argsort(window_index)
         hidden_states = hidden_states[reverse_indices, :]
         return hidden_states
-
-
