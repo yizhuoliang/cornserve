@@ -188,10 +188,10 @@ class ResourceManager:
                             )
                         )
                     await asyncio.gather(*cleanup_coros, return_exceptions=True)
-                raise RuntimeError(f"Failed to spawn {failed} sidecar pods: {spawn_results}")
 
             if failed:
                 await cleanup()
+                raise RuntimeError(f"Failed to spawn {failed} sidecar pods: {spawn_results}")
             else:
 
                 async def wait_for_online(rank: int) -> None:
@@ -213,9 +213,10 @@ class ResourceManager:
                 try:
                     async with asyncio.timeout(SidecarLaunchInfo.DEFAULT_LAUNCH_TIMEOUT):
                         await asyncio.gather(*coros)
-                except TimeoutError:
+                except TimeoutError as e:
                     logger.error("Timed out waiting for sidecars to come online")
                     await cleanup()
+                    raise RuntimeError(f"Failed to spawn {failed} sidecar pods: {spawn_results}") from e
                 logger.info("All sidecars are online")
 
             resource = Resource(gpus=gpus)
