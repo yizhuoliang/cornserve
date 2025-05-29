@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - master
-      - jm-patch-release
+      - jm-release-patch
     tags:
       - v*
     paths:
@@ -84,7 +84,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=match,pattern=v.*
-            type=raw,value=v0.0.1.post1,enable=${{ github.ref == 'refs/heads/jm-patch-release' }}
+            type=raw,value=v0.0.1.post1,enable=${{ github.ref == 'refs/heads/jm-release-patch' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
