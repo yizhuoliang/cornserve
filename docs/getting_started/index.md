@@ -10,10 +10,13 @@ You can try out Cornserve on your local machine (with Docker and at least two NV
 
 First, install Minikube following their [guide](https://minikube.sigs.k8s.io/docs/start/).
 
-Then, start a Minikube cluster with GPU support:
+Then, start a Minikube cluster with GPU support (1):
+{ .annotate }
+
+1. We recommend enabling rootless docker to avoid permission or `$PATH` related issues.
 
 ```bash
-minikube start \ # (2)!
+minikube start \
     --driver docker \
     --container-runtime docker \
     --gpus all \
@@ -21,7 +24,6 @@ minikube start \ # (2)!
 ```
 
 1. Give it enough disk space to download model weights and stuff. You can also give more CPU (e.g., `--cpus 8`) and memory (`--memory 16g`).
-2. We recommend enabling rootless docker to avoid permission or `$PATH` related issues.
 
 Next, and this is important, we want to increase the shared memory (`/dev/shm`) size of the Minikube container.
 
