@@ -205,9 +205,9 @@ class ResourceManager:
                                 if res.status == sidecar_pb2.HealthStatus.HEALTH_ALL_GOOD:
                                     logger.info("Sidecar %d is online", rank)
                                     return
-                                await asyncio.sleep(3)
+                                await asyncio.sleep(1)
                         except Exception:
-                            await asyncio.sleep(3)
+                            await asyncio.sleep(1)
 
                 coros = [wait_for_online(gpu.global_rank) for gpu in gpus]
                 try:
