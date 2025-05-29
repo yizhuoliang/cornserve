@@ -21,7 +21,7 @@ minikube start \ # (2)!
 ```
 
 1. Give it enough disk space to download model weights and stuff. You can also give more CPU (e.g., `--cpus 8`) and memory (`--memory 16g`).
-2. If you don't have rootless docker, please prepend `sudo`
+2. We recommend enabling rootless docker to avoid permission or `$PATH` related issues.
 
 Next, and this is important, we want to increase the shared memory (`/dev/shm`) size of the Minikube container.
 
@@ -92,25 +92,30 @@ Now, you can invoke the app using the CLI:
 
 ```console
 $ cornserve invoke mllm - <<EOF
-prompt: "Describe what you see in the two images, in detail."
+prompt: "Write a haiku about each image."
 multimodal_data:
 - ["image", "https://picsum.photos/id/12/480/560"]
 - ["image", "https://picsum.photos/id/234/960/960"]
 EOF
-╭──────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ response │ The first image depicts a serene beach scene with a rocky foreground and a sandy beach extending into the │
-│          │ distance. The rocks are dark and jagged, contrasting with the smooth, golden sand. The ocean is calm,     │
-│          │ with gentle waves lapping against the shore. In the background, there is a line of trees or a forested    │
-│          │ area, adding depth to the scene. The sky is clear, suggesting a bright and sunny day.                     │
-│          │                                                                                                           │
-│          │ The second image shows a bustling city street with the Eiffel Tower prominently visible in the            │
-│          │ background. The tower is tall and slender, with a metal lattice structure. The street is lined with       │
-│          │ trees, some of which have bare branches, indicating a winter or early spring setting. There are several   │
-│          │ buildings along the street, including a large, ornate building with multiple stories and balconies. The   │
-│          │ street is filled with cars and pedestrians, giving the scene a lively and dynamic atmosphere. The overall │
-│          │ color tone of the image is muted, with a sepia-like effect, adding a vintage or nostalgic feel to the     │
-│          │ photograph.                                                                                               │
-╰──────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭──────────┬───────────────────────────────────────────────────────────────────────────╮
+│ response │ Okay, here are haikus for each image:                                     │
+│          │                                                                           │
+│          │ **Image 1: Coastal Landscape**                                            │
+│          │                                                                           │
+│          │ Gray sea meets the shore,                                                 │
+│          │ Rocks stand still, a weathered grace,                                     │
+│          │ Island dreams unfold.                                                     │
+│          │                                                                           │
+│          │ **Image 2: Paris Scene**                                                  │
+│          │                                                                           │
+│          │ Fog veils city’s height,                                                  │
+│          │ Eiffel stands, a ghostly trace,                                           │
+│          │ Winter’s quiet grace.                                                     │
+│          │                                                                           │
+│          │ ---                                                                       │
+│          │                                                                           │
+│          │ Would you like me to create haikus for any other images you have in mind? │
+╰──────────┴───────────────────────────────────────────────────────────────────────────╯
 ```
 
 The invocation payload and response schema are defined by [the app itself](https://github.com/cornserve-ai/cornserve/blob/3fbf3c62dc7bd8019af29d1ae260b2cafc071ad8/examples/mllm/app.py) as a `AppRequest` and `AppResponse` subclass.

@@ -10,6 +10,8 @@ from cornserve import constants
 class SidecarLaunchInfo:
     """Information to launch sidecars."""
 
+    launch_timeout = 5 * 60.0
+
     @staticmethod
     def get_pod(
         node: kclient.V1Node,
