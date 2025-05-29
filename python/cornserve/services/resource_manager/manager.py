@@ -211,7 +211,7 @@ class ResourceManager:
 
                 coros = [wait_for_online(gpu.global_rank) for gpu in gpus]
                 try:
-                    async with asyncio.timeout(SidecarLaunchInfo.launch_timeout):
+                    async with asyncio.timeout(SidecarLaunchInfo.DEFAULT_LAUNCH_TIMEOUT):
                         await asyncio.gather(*coros)
                 except TimeoutError:
                     logger.error("Timed out waiting for sidecars to come online")

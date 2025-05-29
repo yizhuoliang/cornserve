@@ -10,7 +10,7 @@ from cornserve import constants
 class SidecarLaunchInfo:
     """Information to launch sidecars."""
 
-    launch_timeout = 5 * 60.0
+    DEFAULT_LAUNCH_TIMEOUT = 5 * 60.0
 
     @staticmethod
     def get_pod(
