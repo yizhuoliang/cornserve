@@ -4,6 +4,9 @@ import torch
 import torch.nn as nn
 
 
+# TODO: Get RMSNorm from vLLM
+
+
 class GemmaRMSNorm(nn.Module):
     """RMS normalization for Gemma.
 
