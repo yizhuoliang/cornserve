@@ -15,7 +15,7 @@ from cornserve.app.base import AppConfig, AppRequest, AppResponse
 from cornserve.logging import get_logger
 from cornserve.services.gateway.app.models import AppClasses, AppDefinition, AppState
 from cornserve.services.gateway.task_manager import TaskManager
-from cornserve.task.base import discover_unit_tasks
+from cornserve.task.base import expand_tasks_into_unit_tasks
 
 logger = get_logger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -139,10 +139,13 @@ class AppManager:
             span.set_attribute("app_manager.register_app.app_id", app_id)
 
             try:
-                # Validation and tasks discovery
+                # Validation and unit tasks discovery
                 module = load_module_from_source(source_code, app_id)
                 app_classes = validate_app_module(module)
-                tasks = discover_unit_tasks(app_classes.config_cls.tasks.values())
+                tasks = expand_tasks_into_unit_tasks(app_classes.config_cls.tasks.values())
+                # NEW:
+                for task in tasks:
+                    logger.info("Discovered task executor name: %s", task.execution_descriptor.create_executor_name().lower())
             except (ImportError, ValueError) as e:
                 logger.error("App source code validation failed for app_id '%s': %s", app_id, e)
                 raise ValueError(f"App source code validation failed: {e}") from e
@@ -153,7 +156,7 @@ class AppManager:
                 module=module,
                 classes=app_classes,
                 source_code=source_code,
-                tasks=tasks, # Store discovered tasks
+                tasks=tasks, # Store discovered unit tasks
             )
             self.app_states[app_id] = AppState.NOT_READY
             logger.info("App '%s' validated (tasks discovered: %s) and registered with state: %s. Scheduling task deployment.", 
@@ -218,7 +221,7 @@ class AppManager:
                 task.cancel()
 
         # Let the task manager know that this app no longer needs these tasks
-        tasks = discover_unit_tasks(app.classes.config_cls.tasks.values())
+        tasks = expand_tasks_into_unit_tasks(app.classes.config_cls.tasks.values())
 
         try:
             await self.task_manager.declare_not_used(tasks)

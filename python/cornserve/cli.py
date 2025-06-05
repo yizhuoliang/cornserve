@@ -155,9 +155,10 @@ def register(
     initial_table.add_row(app_id, current_alias, Text(AppState.NOT_READY.value.title(), style="yellow"))
     rich.print(initial_table)
     
+    # Have a spinner while we are waiting
     with Live(auto_refresh=False, vertical_overflow="visible") as live:
         status_str = AppState.NOT_READY.value
-        spinner_message = f" Registering app '{app_id}'... Current status: {status_str.title()}"
+        spinner_message = f" Waiting for app '{app_id}' to initialize ... Current status: {status_str.title()}"
         spinner = Spinner("dots", text=Text(spinner_message, style="yellow"))
         live.update(spinner, refresh=True)
         
@@ -203,7 +204,7 @@ def register(
     final_table = Table(box=box.ROUNDED, title=f"Registration Result for {app_id}")
     final_table.add_column("App ID")
     final_table.add_column("Alias")
-    final_table.add_column("Final Status")
+    final_table.add_column("Status")
     
     final_status_text = status_str.title()
     final_status_style = "yellow"
