@@ -14,6 +14,7 @@ import rich
 import tyro
 import yaml
 from rich import box
+from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -27,6 +28,7 @@ from cornserve.services.gateway.models import (
     AppRegistrationResponse,
 )
 from cornserve.services.gateway.app.models import AppState
+from cornserve.misc import LogStreamer
 
 
 try:
@@ -133,6 +135,7 @@ def register(
         raw_response.raise_for_status()
         response = AppRegistrationResponse.model_validate(raw_response.json())
         app_id = response.app_id
+        task_names = response.task_names
     except requests.exceptions.RequestException as e:
         rich.print(Panel(f"Failed to send registration request: {e}", style="red", expand=False))
         return
@@ -154,66 +157,93 @@ def register(
     initial_table.add_column("Status")
     initial_table.add_row(app_id, current_alias, Text(AppState.NOT_READY.value.title(), style="yellow"))
     rich.print(initial_table)
+
+    if task_names:
+        tasks_table = Table(box=box.ROUNDED, title="Discovered Unit Tasks")
+        tasks_table.add_column("Task Name")
+        for name in task_names:
+            tasks_table.add_row(name)
+        rich.print(tasks_table)
     
     # Have a spinner while we are waiting
-    with Live(auto_refresh=False, vertical_overflow="visible") as live:
-        status_str = AppState.NOT_READY.value
-        spinner_message = f" Waiting for app '{app_id}' to initialize ... Current status: {status_str.title()}"
-        spinner = Spinner("dots", text=Text(spinner_message, style="yellow"))
-        live.update(spinner, refresh=True)
-        
-        # Brief pause to allow the server to set the initial NOT_READY state if it's extremely fast
-        # and before the first poll, though app_manager sets it before returning app_id.
-        time.sleep(0.2)
+    status_str = AppState.NOT_READY.value
+    spinner_message = f" Waiting for app '{app_id}' to initialize ... Current status: {status_str.title()}"
+    spinner = Spinner("dots", text=Text(spinner_message, style="yellow"))
 
-        while status_str == AppState.NOT_READY.value:
-            try:
-                status_response = requests.get(f"{GATEWAY_URL}/app/status/{app_id}", timeout=5)
-                status_response.raise_for_status()
-                status_data = status_response.json()
-                status_str = status_data.get("status", "unknown").lower()
-                
-                current_style = "yellow"
-                if status_str == AppState.READY.value:
-                    current_style = "green"
-                elif status_str == AppState.REGISTRATION_FAILED.value:
-                    current_style = "red"
-                
-                spinner_message = f" Registering app '{app_id}'... Current status: {status_str.title()}"
-                spinner = Spinner("dots", text=Text(spinner_message, style=current_style))
-                live.update(spinner, refresh=True)
-                
-                if status_str != AppState.NOT_READY.value:
+    log_streamer: LogStreamer | None = None
+    try:
+        with Live(spinner, auto_refresh=True, vertical_overflow="visible") as live:
+            start_time = time.time()
+            streamer_attempted = False
+
+            time.sleep(0.2)
+
+            while status_str == AppState.NOT_READY.value:
+                # Start log streamer after a delay
+                if not streamer_attempted and (time.time() - start_time) > 3 and task_names:
+                    log_streamer = LogStreamer(task_names)
+                    if log_streamer.k8s_available:
+                        log_streamer.start()
+                    streamer_attempted = True  # Attempt to start only once
+
+                try:
+                    status_response = requests.get(f"{GATEWAY_URL}/app/status/{app_id}", timeout=5)
+                    status_response.raise_for_status()
+                    status_data = status_response.json()
+                    status_str = status_data.get("status", "unknown").lower()
+
+                    current_style = "yellow"
+                    if status_str == AppState.READY.value:
+                        current_style = "green"
+                    elif status_str == AppState.REGISTRATION_FAILED.value:
+                        current_style = "red"
+
+                    spinner_message = f" Registering app '{app_id}'... Current status: {status_str.title()}"
+                    spinner.text = Text(spinner_message, style=current_style)
+
+                    # Update live display
+                    render_group = [spinner]
+                    if log_streamer:
+                        if log_streamer.k8s_available:
+                            render_group.append(log_streamer.get_renderable())
+                        else:
+                            render_group.append(
+                                Panel(
+                                    Text(
+                                        "Could not connect to Kubernetes cluster. Logs will not be streamed.",
+                                        style="yellow",
+                                    ),
+                                    title="[bold yellow]Log Streaming[/bold yellow]",
+                                    border_style="dim",
+                                )
+                            )
+                    live.update(Group(*render_group))
+
+                    if status_str != AppState.NOT_READY.value:
+                        break
+                    time.sleep(1)
+                except requests.exceptions.Timeout:
+                    spinner_message = f" Polling timeout for app '{app_id}'. Retrying..."
+                    spinner.text = Text(spinner_message, style="orange")
+                    time.sleep(1)
+                except requests.exceptions.RequestException as e:
+                    status_str = "polling_error"
+                    live.update(Text(f"Error polling status for '{app_id}': {e}", style="red"), refresh=True)
                     break
-                time.sleep(1)
-            except requests.exceptions.Timeout:
-                spinner_message = f" Polling timeout for app '{app_id}'. Retrying..."
-                spinner = Spinner("dots", text=Text(spinner_message, style="orange"))
-                live.update(spinner, refresh=True)
-                time.sleep(1)
-            except requests.exceptions.RequestException as e:
-                status_str = "polling_error"
-                live.update(Text(f"Error polling status for '{app_id}': {e}", style="red"), refresh=True)
-                break 
-            except Exception as e:
-                status_str = "unexpected_error"
-                live.update(Text(f"An unexpected error occurred while polling for '{app_id}': {e}", style="red"), refresh=True)
-                break
-
-    # Final status display outside of Live context
-    final_table = Table(box=box.ROUNDED, title=f"Registration Result for {app_id}")
-    final_table.add_column("App ID")
-    final_table.add_column("Alias")
-    final_table.add_column("Status")
-    
-    final_status_text = status_str.title()
-    final_status_style = "yellow"
+                except Exception as e:
+                    status_str = "unexpected_error"
+                    live.update(
+                        Text(f"An unexpected error occurred while polling for '{app_id}': {e}", style="red"),
+                        refresh=True,
+                    )
+                    break
+    finally:
+        if log_streamer:
+            log_streamer.stop()
 
     if status_str == AppState.READY.value:
-        final_status_style = "green"
         rich.print(Panel(f"App '{app_id}' registered successfully with alias '{current_alias}'.", style="green", expand=False))
     elif status_str == AppState.REGISTRATION_FAILED.value:
-        final_status_style = "red"
         Alias().remove(current_alias)
         rich.print(Panel(f"App '{app_id}' failed to register. Alias '{current_alias}' removed.", style="red", expand=False))
     elif status_str == "polling_error":
@@ -222,10 +252,6 @@ def register(
         rich.print(Panel(f"An unexpected error occurred while checking status for '{app_id}'. Please check with 'cornserve list'.", style="red", expand=False))
     else:
         rich.print(Panel(f"App '{app_id}' registration ended with an inconclusive status: '{status_str.title()}'. Please check with 'cornserve list'.", style="yellow", expand=False))
-
-    final_table.add_row(app_id, current_alias, Text(final_status_text, style=final_status_style))
-    rich.print(final_table)
-
 
 @app.command(name="unregister")
 def unregister(

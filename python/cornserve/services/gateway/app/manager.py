@@ -110,9 +110,9 @@ class AppManager:
         self.app_driver_tasks: dict[str, list[asyncio.Task]] = defaultdict(list)
 
     @tracer.start_as_current_span(name="AppManager.register_app")
-    async def register_app(self, source_code: str) -> str:
+    async def register_app(self, source_code: str) -> tuple[str, list[str]]:
         """Register a new application with the given source code.
-        Return app_id immediately after successful validation.
+        Return app_id and unit task names immediately after successful validation.
         
         Actual registration, in the background, will deploy all unit
         tasks discovered in the app's config.
@@ -121,7 +121,7 @@ class AppManager:
             source_code: Python source code of the application
 
         Returns:
-            str: The app ID
+            tuple[str, list[str]]: The app ID and the list of unit task names.
 
         Raises:
             ValueError: If app validation fails
@@ -143,7 +143,8 @@ class AppManager:
                 module = load_module_from_source(source_code, app_id)
                 app_classes = validate_app_module(module)
                 tasks = expand_tasks_into_unit_tasks(app_classes.config_cls.tasks.values())
-                # NEW:
+                task_names = [t.execution_descriptor.create_executor_name().lower() for t in tasks]
+
                 for task in tasks:
                     logger.info("Discovered task executor name: %s", task.execution_descriptor.create_executor_name().lower())
             except (ImportError, ValueError) as e:
@@ -167,7 +168,7 @@ class AppManager:
         # Start background task for task deployment (app_id is guaranteed to be set if we reach here)
         asyncio.create_task(self._deploy_app_tasks(app_id))
 
-        return app_id
+        return app_id, task_names
 
     async def _deploy_app_tasks(self, app_id: str) -> None:
         """Deploys tasks for an already validated and registered app.

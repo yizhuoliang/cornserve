@@ -39,8 +39,8 @@ async def register_app(request: AppRegistrationRequest, raw_request: Request):
     app_manager: AppManager = raw_request.app.state.app_manager
 
     try:
-        app_id = await app_manager.register_app(request.source_code)
-        return AppRegistrationResponse(app_id=app_id)
+        app_id, task_names = await app_manager.register_app(request.source_code)
+        return AppRegistrationResponse(app_id=app_id, task_names=task_names)
     except ValueError as e:
         logger.info("Error while initiating app registration: %s", e)
         return Response(status_code=status.HTTP_400_BAD_REQUEST, content=str(e))
