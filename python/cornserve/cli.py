@@ -18,8 +18,7 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.live import Live
-from rich.spinner import Spinner
+from rich.status import Status
 from tyro.constructors import PrimitiveConstructorSpec
 
 from cornserve.services.gateway.models import (
@@ -118,12 +117,14 @@ class Alias:
 def register(
     path: Annotated[Path, tyro.conf.Positional],
     alias: str | None = None,
+    is_async: bool = False,
 ) -> None:
     """Register an app with the Cornserve gateway.
 
     Args:
         path: Path to the app's source file.
         alias: Optional alias for the app.
+        is_async: If true, exit without waiting for READY status.
     """
     request = AppRegistrationRequest(source_code=path.read_text().strip())
     try:
@@ -165,14 +166,17 @@ def register(
             tasks_table.add_row(name)
         rich.print(tasks_table)
     
+    if is_async:
+        rich.print(Panel(f"App '{app_id}' with alias '{current_alias}' is submitted for registration.", style="green", expand=False))
+        return
+
     # Have a spinner while we are waiting
     status_str = AppState.NOT_READY.value
     spinner_message = f" Waiting for app '{app_id}' to initialize ... Current status: {status_str.title()}"
-    spinner = Spinner("dots", text=Text(spinner_message, style="yellow"))
 
     log_streamer: LogStreamer | None = None
     try:
-        with Live(spinner, auto_refresh=True, vertical_overflow="visible") as live:
+        with Status(spinner_message, spinner="dots") as status:
             start_time = time.time()
             streamer_attempted = False
 
@@ -184,6 +188,17 @@ def register(
                     log_streamer = LogStreamer(task_names)
                     if log_streamer.k8s_available:
                         log_streamer.start()
+                    else:
+                        rich.print(
+                            Panel(
+                                Text(
+                                    "Could not connect to Kubernetes cluster. Logs will not be streamed.",
+                                    style="yellow",
+                                ),
+                                title="[bold yellow]Log Streaming[/bold yellow]",
+                                border_style="dim",
+                            )
+                        )
                     streamer_attempted = True  # Attempt to start only once
 
                 try:
@@ -199,42 +214,23 @@ def register(
                         current_style = "red"
 
                     spinner_message = f" Registering app '{app_id}'... Current status: {status_str.title()}"
-                    spinner.text = Text(spinner_message, style=current_style)
-
-                    # Update live display
-                    render_group = [spinner]
-                    if log_streamer:
-                        if log_streamer.k8s_available:
-                            render_group.append(log_streamer.get_renderable())
-                        else:
-                            render_group.append(
-                                Panel(
-                                    Text(
-                                        "Could not connect to Kubernetes cluster. Logs will not be streamed.",
-                                        style="yellow",
-                                    ),
-                                    title="[bold yellow]Log Streaming[/bold yellow]",
-                                    border_style="dim",
-                                )
-                            )
-                    live.update(Group(*render_group))
+                    status.update(status=Text(spinner_message, style=current_style))
 
                     if status_str != AppState.NOT_READY.value:
                         break
                     time.sleep(1)
                 except requests.exceptions.Timeout:
                     spinner_message = f" Polling timeout for app '{app_id}'. Retrying..."
-                    spinner.text = Text(spinner_message, style="orange")
+                    status.update(status=Text(spinner_message, style="orange"))
                     time.sleep(1)
                 except requests.exceptions.RequestException as e:
                     status_str = "polling_error"
-                    live.update(Text(f"Error polling status for '{app_id}': {e}", style="red"), refresh=True)
+                    rich.print(Text(f"Error polling status for '{app_id}': {e}", style="red"))
                     break
                 except Exception as e:
                     status_str = "unexpected_error"
-                    live.update(
+                    rich.print(
                         Text(f"An unexpected error occurred while polling for '{app_id}': {e}", style="red"),
-                        refresh=True,
                     )
                     break
     finally:
@@ -351,6 +347,47 @@ def invoke(
     for key, value in raw_response.json().items():
         table.add_row(key, value)
     rich.print(table)
+
+
+@app.command(name="status")
+def check_status(
+    app_id_or_alias: Annotated[str, tyro.conf.Positional],
+) -> None:
+    """Check the registration status of an application."""
+    if app_id_or_alias.startswith("app-"):
+        app_id = app_id_or_alias
+    else:
+        alias = Alias()
+        app_id = alias.get(app_id_or_alias)
+        if not app_id:
+            rich.print(Panel(f"Alias '{app_id_or_alias}' not found.", style="red", expand=False))
+            return
+
+    try:
+        status_response = requests.get(f"{GATEWAY_URL}/app/status/{app_id}", timeout=5)
+
+        if status_response.status_code == 404:
+            rich.print(f"App '{app_id}' not found.")
+            return
+
+        status_response.raise_for_status()
+        status_data = status_response.json()
+        status_str = status_data.get("status", "unknown").lower()
+
+        status_style = "yellow"
+        if status_str == AppState.READY.value:
+            status_style = "green"
+        elif status_str == AppState.REGISTRATION_FAILED.value:
+            status_style = "red"
+        
+        rich.print(f"Status for app '{app_id}': [{status_style}]{status_str.title()}[/{status_style}]")
+
+    except requests.exceptions.RequestException as e:
+        rich.print(Panel(f"Error checking status for '{app_id}': {e}", style="red", expand=False))
+    except Exception as e:
+        rich.print(
+            Panel(f"An unexpected error occurred while checking status for '{app_id}': {e}", style="red", expand=False)
+        )
 
 
 def main() -> None:
