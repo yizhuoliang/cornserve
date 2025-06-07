@@ -14,7 +14,6 @@ import rich
 import tyro
 import yaml
 from rich import box
-from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -124,7 +123,7 @@ def register(
     Args:
         path: Path to the app's source file.
         alias: Optional alias for the app.
-        is_async: If true, exit without waiting for READY status.
+        is_async: If true, exit immediately after submission without waiting.
     """
     request = AppRegistrationRequest(source_code=path.read_text().strip())
     try:
@@ -349,7 +348,7 @@ def invoke(
     rich.print(table)
 
 
-@app.command(name="status")
+@app.command(name="check-status")
 def check_status(
     app_id_or_alias: Annotated[str, tyro.conf.Positional],
 ) -> None:
@@ -385,9 +384,7 @@ def check_status(
     except requests.exceptions.RequestException as e:
         rich.print(Panel(f"Error checking status for '{app_id}': {e}", style="red", expand=False))
     except Exception as e:
-        rich.print(
-            Panel(f"An unexpected error occurred while checking status for '{app_id}': {e}", style="red", expand=False)
-        )
+        rich.print(Panel(f"Unexpected error while checking '{app_id}': {e}", style="red", expand=False))
 
 
 def main() -> None:
