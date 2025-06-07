@@ -10,7 +10,7 @@ from collections import deque
 from typing import Deque
 
 import rich
-from rich.console import Group
+from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
@@ -38,9 +38,10 @@ DISTINCT_COLORS = [
 class LogStreamer:
     """Streams logs from Kubernetes pods related to unit tasks."""
 
-    def __init__(self, unit_task_names: list[str], namespace: str = "cornserve"):
+    def __init__(self, unit_task_names: list[str], namespace: str = "cornserve", console: Console | None = None):
         self.unit_task_names = unit_task_names
         self.namespace = namespace
+        self.console = console or rich.get_console()
         self.k8s_available = self._check_k8s_access()
         if not self.k8s_available:
             return
@@ -53,41 +54,36 @@ class LogStreamer:
         self.lock = threading.Lock()
 
     def _check_k8s_access(self) -> bool:
-        from rich import print
-        print("[bold yellow]DEBUG: Checking Kubernetes access...[/bold yellow]")
-        print("[bold yellow]DEBUG: Will attempt to find a valid kubeconfig for standard k8s, Minikube, or K3s.[/bold yellow]")
+        self.console.print("[bold yellow]LogStreamer: Checking Kubernetes access...[/bold yellow]")
 
         # List of config loading attempts
         config_loaders = [
-            ("default kube config (for standard k8s, Minikube, etc.)", lambda: config.load_kube_config()),
+            ("default kube config (for standard k8s and Minikube)", lambda: config.load_kube_config()),
             ("K3s kube config", lambda: config.load_kube_config(config_file="/etc/rancher/k3s/k3s.yaml")),
         ]
 
         for description, loader in config_loaders:
-            print(f"[bold yellow]DEBUG: Attempting to load {description}...[/bold yellow]")
             try:
                 loader()
                 # If loaded, try to access the API
-                print(f"[bold green]DEBUG: {description.capitalize()} loaded successfully.[/bold green]")
-                print("[bold yellow]DEBUG: Attempting to call get_api_resources...[/bold yellow]")
+                self.console.print(f"[bold green]LogStreamer: {description.capitalize()} loaded successfully.[/bold green]")
                 client.CoreV1Api().get_api_resources()
-                print(f"[bold green]DEBUG: Kubernetes API access confirmed via {description}.[/bold green]")
-                return True  # Success, exit the function
+                self.console.print(f"[bold green]LogStreamer: Kubernetes access confirmed. Going to stream executor logs ... [/bold green]")
+                return True
             except (ConfigException, FileNotFoundError):
-                print(f"[bold yellow]DEBUG: Could not load {description}. Trying next option...[/bold yellow]")
-                continue  # Try next loader
+                self.console.print(f"[bold yellow]LogStreamer: Could not load {description}. Trying next option...[/bold yellow]")
+                continue
             except ApiException as e:
-                print(f"[bold red]DEBUG: API error with {description}: {e}. Aborting check.[/bold red]")
-                # If we have an API error (e.g., permissions), it's unlikely another config will work.
+                self.console.print(f"[bold red]LogStreamer: API error with {description}: {e}. Aborting check.[/bold red]")
                 return False
             except Exception as e:
-                # Catch any other unexpected errors during loading or API call.
-                print(
-                    f"[bold red]DEBUG: An unexpected error occurred with {description}: {e}. Trying next option...[/bold red]"
+                # Catch all other unexpected errors during loading or API call.
+                self.console.print(
+                    f"[bold red]LogStreamer: Unexpected error with {description}: {e}. Trying next option...[/bold red]"
                 )
                 continue
 
-        print("[bold red]DEBUG: All attempts to connect to Kubernetes failed.[/bold red]")
+        self.console.print("[bold red]LogStreamer: Kubernetes access failed. No log will be streamed.[/bold red]")
         return False
 
     def _assign_color(self, pod_name: str):
@@ -131,7 +127,7 @@ class LogStreamer:
                             break  # Move to next pod
             except ApiException as e:
                 error_message = Text(f"Error discovering pods: {e.reason}", style="bold red")
-                rich.print(error_message)
+                self.console.print(error_message)
                 time.sleep(5)  # Wait before retrying on API error
             except Exception:
                 # Catch other potential exceptions from k8s client
@@ -148,7 +144,7 @@ class LogStreamer:
                 if pod_status == "Running":
                     break
                 if pod_status in ["Succeeded", "Failed", "Unknown"]:
-                    rich.print(
+                    self.console.print(
                         Text(f"Pod {pod_name} is in state {pod_status}, not streaming logs.", style="yellow")
                     )
                     return
@@ -171,15 +167,15 @@ class LogStreamer:
                     color = self.pod_colors.get(pod_name, "white")
                     log_text = f"{pod_name: <40} | {line.strip()}"
                     log_message = Text(log_text, style=color)
-                rich.print(log_message)
+                self.console.print(log_message)
 
             proc.stdout.close()
             return_code = proc.wait()
             if return_code != 0 and not self.stop_event.is_set():
-                rich.print(Text(f"Pod {pod_name} exited with code {return_code}.", style="yellow"))
+                self.console.print(Text(f"Pod {pod_name} exited with code {return_code}.", style="yellow"))
 
         except Exception as e:
-            rich.print(Text(f"Error streaming logs for {pod_name}: {e}", style="red"))
+            self.console.print(Text(f"Error streaming logs for {pod_name}: {e}", style="red"))
 
     def start(self):
         if not self.k8s_available:

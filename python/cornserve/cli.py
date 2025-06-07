@@ -169,13 +169,14 @@ def register(
         rich.print(Panel(f"App '{app_id}' with alias '{current_alias}' is submitted for registration.", style="green", expand=False))
         return
 
+    console = rich.get_console()
     # Have a spinner while we are waiting
     status_str = AppState.NOT_READY.value
     spinner_message = f" Waiting for app '{app_id}' to initialize ... Current status: {status_str.title()}"
 
     log_streamer: LogStreamer | None = None
     try:
-        with Status(spinner_message, spinner="dots") as status:
+        with Status(spinner_message, spinner="dots", console=console) as status:
             start_time = time.time()
             streamer_attempted = False
 
@@ -184,7 +185,7 @@ def register(
             while status_str == AppState.NOT_READY.value:
                 # Start log streamer after a delay
                 if not streamer_attempted and (time.time() - start_time) > 3 and task_names:
-                    log_streamer = LogStreamer(task_names)
+                    log_streamer = LogStreamer(task_names, console=console)
                     if log_streamer.k8s_available:
                         log_streamer.start()
                     else:
